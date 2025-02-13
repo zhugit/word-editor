@@ -10,15 +10,24 @@
   },
   "dependencies": {
     "@vueup/vue-quill": "^1.2.0",
-    "docx": "^9.1.1",
+    "blob-polyfill": "^9.0.20240710",
+    "docx": "^8.5.0",
+    "docx-preview": "^0.3.4",
     "dompurify": "^3.2.4",
+    "events": "^3.3.0",
     "file-saver": "^2.0.5",
+    "html-to-docx": "^1.8.0",
+    "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
+    "jszip": "^3.10.1",
     "mammoth": "^1.9.0",
     "marked": "^15.0.7",
     "quill": "^2.0.3",
+    "stream-browserify": "^3.0.0",
+    "util": "^0.12.5",
     "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "vue-router": "^4.5.0",
+    "xmlbuilder2": "^3.1.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",

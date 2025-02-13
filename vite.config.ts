@@ -1,10 +1,23 @@
 import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue"; // ✅ 确保安装 Vue 插件
+import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
-  plugins: [vue()], // ✅ 添加 Vue 插件
+  plugins: [vue()],
+  resolve: {
+    alias: {
+      events: "events/",
+      util: "util/",
+      stream: "stream-browserify/",
+    },
+  },
   optimizeDeps: {
-    include: [], // ❌ 移除 "html-docx-js"
+    include: ["docx", "xmlbuilder2", "html-to-docx", "events", "util", "stream-browserify"],
+  },
+  define: {
+    global: {},
+    process: {
+      env: {},
+    },
   },
   build: {
     commonjsOptions: {
