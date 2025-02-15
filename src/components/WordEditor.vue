@@ -24,7 +24,7 @@ import { ref } from "vue";
 import { QuillEditor } from "@vueup/vue-quill";
 import "quill/dist/quill.snow.css";
 import { saveAs } from "file-saver";
-import { Document, Packer, Paragraph, TextRun, ImageRun } from "docx";
+import { Document, Packer, Paragraph, TextRun, ImageRun, ExternalHyperlink } from "docx";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import mammoth from "mammoth";
@@ -76,16 +76,44 @@ export default {
           for (const innerChild of child.childNodes) {
             if (innerChild.nodeType === 3 && innerChild.textContent.trim()) {
               paragraphChildren.push(new TextRun(innerChild.textContent));
+            } else if (innerChild.nodeType === 1 && innerChild.tagName === "A") {
+              // **真正可点击的超链接**
+              const url = innerChild.getAttribute("href");
+              const linkText = innerChild.textContent || url;
+              paragraphChildren.push(
+                new ExternalHyperlink({
+                  children: [
+                    new TextRun({
+                      text: linkText,
+                      style: "Hyperlink",
+                      color: "0000FF", // 超链接蓝色
+                      underline: true,
+                    }),
+                  ],
+                  link: url,
+                })
+              );
             } else if (innerChild.nodeType === 1 && innerChild.tagName === "IMG") {
               const imgSrc = innerChild.getAttribute("src");
               if (imgSrc.startsWith("data:image")) {
                 const base64Data = imgSrc.split(",")[1];
                 const buffer = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
 
+                // 获取原始尺寸
+                const imgWidth = innerChild.width || 600;
+                const imgHeight = innerChild.height || (imgWidth * 0.75);
+
+                // A4 适配
+                const maxWidth = 450; // A4 适应的最大宽度 (单位: pt)
+                const scaleFactor = Math.min(1, maxWidth / imgWidth);
+
                 paragraphChildren.push(
                   new ImageRun({
                     data: buffer,
-                    transformation: { width: 400, height: 300 }, // **保持图片大小**
+                    transformation: {
+                      width: imgWidth * scaleFactor,
+                      height: imgHeight * scaleFactor,
+                    },
                   })
                 );
               }
@@ -98,7 +126,20 @@ export default {
         }
       }
 
-      const doc = new Document({ sections: [{ children: docChildren }] });
+      // **设置 A4 竖版**
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                size: { width: 11907, height: 16840 }, // A4 竖版
+                margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }, // 1 inch margin
+              },
+            },
+            children: docChildren,
+          },
+        ],
+      });
 
       Packer.toBlob(doc).then((blob) => {
         saveAs(blob, `${filename}.docx`);
