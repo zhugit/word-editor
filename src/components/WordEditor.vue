@@ -26,8 +26,17 @@ import "quill/dist/quill.snow.css";
 import { saveAs } from "file-saver";
 import { Document, Packer, Paragraph, TextRun, ImageRun, ExternalHyperlink } from "docx";
 import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
 import mammoth from "mammoth";
+
+// **加载字体**
+const loadFontAsBase64 = async () => {
+  const fontUrl = "/fonts/NotoSerifCJKsc-VF.ttf"; // 确保路径正确
+  const response = await fetch(fontUrl);
+  const buffer = await response.arrayBuffer();
+  return btoa(
+    new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+  );
+};
 
 export default {
   components: {
@@ -77,7 +86,7 @@ export default {
             if (innerChild.nodeType === 3 && innerChild.textContent.trim()) {
               paragraphChildren.push(new TextRun(innerChild.textContent));
             } else if (innerChild.nodeType === 1 && innerChild.tagName === "A") {
-              // **真正可点击的超链接**
+              // 可点击的超链接
               const url = innerChild.getAttribute("href");
               const linkText = innerChild.textContent || url;
               paragraphChildren.push(
@@ -98,11 +107,9 @@ export default {
               if (imgSrc.startsWith("data:image")) {
                 const base64Data = imgSrc.split(",")[1];
                 const buffer = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-
                 // 获取原始尺寸
                 const imgWidth = innerChild.width || 600;
                 const imgHeight = innerChild.height || (imgWidth * 0.75);
-
                 // A4 适配
                 const maxWidth = 450; // A4 适应的最大宽度 (单位: pt)
                 const scaleFactor = Math.min(1, maxWidth / imgWidth);
@@ -125,15 +132,14 @@ export default {
           }
         }
       }
-
-      // **设置 A4 竖版**
+      // 设置 A4 竖版
       const doc = new Document({
         sections: [
           {
             properties: {
               page: {
-                size: { width: 11907, height: 16840 }, // A4 竖版
-                margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }, // 1 inch margin
+                size: { width: 11907, height: 16840 },
+                margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
               },
             },
             children: docChildren,
@@ -151,17 +157,44 @@ export default {
       let filename = prompt("请输入文件名", "文档");
       if (!filename) return;
 
-      const editorElement = document.querySelector(".quill-editor");
-      const canvas = await html2canvas(editorElement);
-      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF();
+      const fontBase64 = await loadFontAsBase64();
 
-      const doc = new jsPDF();
-      const imgProps = doc.getImageProperties(imgData);
-      const pdfWidth = doc.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addFileToVFS("NotoSerifCJKsc.ttf", fontBase64);
+      pdf.addFont("NotoSerifCJKsc.ttf", "NotoSerif", "normal");
+      pdf.setFont("NotoSerif");
 
-      doc.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      doc.save(filename + ".pdf");
+      let y = 10;
+
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = editorContent.value;
+
+      for (const child of tempDiv.childNodes) {
+        if (child.nodeType === 3 && child.textContent.trim()) {
+          pdf.text(child.textContent, 10, y);
+          y += 10;
+        } else if (child.nodeType === 1 && child.tagName === "P") {
+          for (const innerChild of child.childNodes) {
+            if (innerChild.nodeType === 3 && innerChild.textContent.trim()) {
+              pdf.text(innerChild.textContent, 10, y);
+              y += 10;
+            } else if (innerChild.nodeType === 1 && innerChild.tagName === "A") {
+              const url = innerChild.getAttribute("href");
+              pdf.textWithLink(innerChild.textContent, 10, y, { url });
+              y += 10;
+            } else if (innerChild.nodeType === 1 && innerChild.tagName === "IMG") {
+              const imgSrc = innerChild.getAttribute("src");
+              if (imgSrc.startsWith("data:image")) {
+                const imgData = imgSrc.split(",")[1];
+                pdf.addImage(imgData, "PNG", 10, y, 100, 100);
+                y += 110;
+              }
+            }
+          }
+        }
+      }
+
+      pdf.save(`${filename}.pdf`);
     };
 
     // **导入 Word**
@@ -173,7 +206,6 @@ export default {
           try {
             const result = await mammoth.convertToHtml({ arrayBuffer: e.target.result });
             let htmlContent = result.value;
-
             // 解析 HTML，找到所有 <p> 标签，确保正确插入图片
             const tempDiv = document.createElement("div");
             tempDiv.innerHTML = htmlContent;
@@ -181,7 +213,7 @@ export default {
             for (const p of tempDiv.getElementsByTagName("p")) {
               if (p.innerHTML.trim() === "") {
                 // 如果 <p> 为空，插入占位符以防止空行
-                p.innerHTML = '<img src="" style="display: none;">';
+                p.innerHTML = "<br>";
               }
             }
 
